@@ -1,0 +1,37 @@
+name: CI/CD Pipeline - FIAP X Video Processor
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Run Unit Tests with JaCoCo Coverage
+        run: mvn clean test jacoco:report
+
+      - name: Verify JaCoCo Coverage Threshold (>= 80%)
+        run: mvn jacoco:check
+
+      - name: Build Application Package
+        run: mvn package -DskipTests
+
+      - name: Upload JaCoCo Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-coverage-report-processor
+          path: target/site/jacoco/
