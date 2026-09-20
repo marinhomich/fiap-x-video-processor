@@ -11,9 +11,10 @@ spring:
     password: ${DB_PASSWORD:fiapx_pass}
     driver-class-name: org.postgresql.Driver
 
+  # O schema pertence ao fiap-x-api-service (migrações Flyway); o worker não altera DDL
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
     show-sql: false
     properties:
       hibernate:
