@@ -5,9 +5,20 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-central1
+  GKE_CLUSTER: fiapx-gke-cluster
+  REGISTRY: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fiapx-repo
+  IMAGE: fiap-x-video-processor
+  DEPLOYMENT: fiap-x-processor
+  CONTAINER: fiap-x-processor
 
 jobs:
   build-and-test:
+    name: Build, Testes & Cobertura
     runs-on: ubuntu-latest
 
     steps:
@@ -21,17 +32,53 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Run Unit Tests with JaCoCo Coverage
-        run: mvn clean test jacoco:report
-
-      - name: Verify JaCoCo Coverage Threshold (>= 80%)
-        run: mvn jacoco:check
-
-      - name: Build Application Package
-        run: mvn package -DskipTests
+      # verify = testes + jacoco:check com a regra de cobertura mínima de 80% definida no pom.xml
+      - name: Run Tests & Verify JaCoCo Coverage (>= 80%)
+        run: mvn -B clean verify
 
       - name: Upload JaCoCo Coverage Report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: jacoco-coverage-report-processor
           path: target/site/jacoco/
+
+  deploy:
+    name: Publicar Imagem & Deploy no GKE
+    needs: build-and-test
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and Push Docker Image
+        run: |-
+          docker build -t "$REGISTRY/$IMAGE:${{ github.sha }}" -t "$REGISTRY/$IMAGE:latest" .
+          docker push "$REGISTRY/$IMAGE:${{ github.sha }}"
+          docker push "$REGISTRY/$IMAGE:latest"
+
+      - name: Get GKE Credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER }}
+          location: ${{ env.REGION }}
+
+      # Os manifestos (Deployment, HPA...) vivem no repositório fiap-x-infra;
+      # aqui apenas trocamos a imagem para a versão recém-publicada (tag = commit SHA).
+      - name: Rollout New Image
+        run: |-
+          kubectl set image deployment/$DEPLOYMENT $CONTAINER="$REGISTRY/$IMAGE:${{ github.sha }}"
+          kubectl rollout status deployment/$DEPLOYMENT --timeout=600s
