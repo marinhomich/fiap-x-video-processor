@@ -46,7 +46,9 @@ jobs:
   deploy:
     name: Publicar Imagem & Deploy no GKE
     needs: build-and-test
-    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    # Deploy desligado por padrão (evita custos no GCP): só roda se a variável de
+    # repositório ENABLE_GCP_DEPLOY for 'true' (Settings > Secrets and variables > Actions > Variables).
+    if: vars.ENABLE_GCP_DEPLOY == 'true' && github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
 
     steps:
