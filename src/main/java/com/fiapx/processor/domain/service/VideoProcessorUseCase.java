@@ -8,7 +8,6 @@ import com.fiapx.processor.infrastructure.storage.StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -28,7 +27,9 @@ public class VideoProcessorUseCase {
     private final ZipArchiverService zipArchiverService;
     private final NotificationService notificationService;
 
-    @Transactional
+    // Sem @Transactional de propósito: cada save() confirma na hora, para que PROCESSANDO fique
+    // visível durante o processamento e o status ERRO não seja desfeito pelo rollback quando a
+    // exceção é relançada (ela precisa chegar ao consumer para o NACK mandar a mensagem à DLQ).
     public void processVideo(VideoProcessEvent event) {
         log.info("Recebida mensagem para processamento do vídeo ID: {}", event.getVideoId());
 

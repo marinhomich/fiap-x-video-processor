@@ -12,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -119,5 +120,14 @@ class VideoProcessorUseCaseTest {
 
         verify(videoRepository, never()).save(any());
         verifyNoInteractions(frameExtractorService, zipArchiverService, notificationService);
+    }
+
+    @Test
+    @DisplayName("processVideo não deve ser transacional, senão o rollback desfaz o status ERRO")
+    void processVideoMustNotBeTransactional() throws NoSuchMethodException {
+        var method = VideoProcessorUseCase.class.getMethod("processVideo", VideoProcessEvent.class);
+
+        assertNull(method.getAnnotation(Transactional.class));
+        assertNull(VideoProcessorUseCase.class.getAnnotation(Transactional.class));
     }
 }
